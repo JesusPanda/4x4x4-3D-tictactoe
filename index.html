@@ -370,6 +370,7 @@
                 content: '...';
             }
         }
+
         .custom-input-wrapper {
             display: flex;
             align-items: center;
@@ -1209,7 +1210,7 @@
 
         function initAIWorker() {
             if (aiWorker) aiWorker.terminate();
-            aiWorker = new Worker('ai-worker.js');
+            aiWorker = new Worker('ai-worker.js', { type: "module" });
 
             aiWorker.onmessage = function (e) {
                 const { type, move, depth, score } = e.data;
@@ -1362,14 +1363,14 @@
         function updateCustomTime() {
             let val = customInput.value.replace(/[^0-9]/g, '');
             customInput.value = val;
-            
+
             if (val && parseInt(val, 10) > 0) {
                 STATE.timeLimit = parseInt(val, 10) * 1000;
             } else {
                 // If empty or 0, fallback to a minimal safe value or wait
                 // Let's keep the last valid State or default to 1s if completely invalid at runtime
                 // But for now, just don't set a potentially weird 0
-                if (val === '0') STATE.timeLimit = 1000; 
+                if (val === '0') STATE.timeLimit = 1000;
             }
         }
 
@@ -1377,10 +1378,10 @@
         btnCustom.onclick = () => setTimeLimit('custom');
 
         customInput.addEventListener('input', updateCustomTime);
-        
+
         // Auto-select custom if they click the input
         customInput.addEventListener('click', () => {
-             setTimeLimit('custom');
+            setTimeLimit('custom');
         });
 
         // Start PvE - Player goes first

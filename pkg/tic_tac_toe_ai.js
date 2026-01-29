@@ -67,6 +67,13 @@ export class Move {
 if (Symbol.dispose) Move.prototype[Symbol.dispose] = Move.prototype.free;
 
 /**
+ * Clear TT - call this when starting a new game, not every move
+ */
+export function clear_transposition_table() {
+    wasm.clear_transposition_table();
+}
+
+/**
  * @param {bigint} p1_mask
  * @param {bigint} p2_mask
  * @param {boolean} ai_is_p1

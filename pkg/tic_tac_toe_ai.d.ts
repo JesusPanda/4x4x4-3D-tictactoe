@@ -11,6 +11,11 @@ export class Move {
     z: number;
 }
 
+/**
+ * Clear TT - call this when starting a new game, not every move
+ */
+export function clear_transposition_table(): void;
+
 export function get_best_move(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, time_limit_ms: number): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -27,6 +32,7 @@ export interface InitOutput {
     readonly __wbg_set_move_y: (a: number, b: number) => void;
     readonly __wbg_set_move_z: (a: number, b: number) => void;
     readonly get_best_move: (a: bigint, b: bigint, c: number, d: number) => any;
+    readonly clear_transposition_table: () => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
