@@ -4,24 +4,11 @@ use std::sync::OnceLock;
 use std::collections::HashMap;
 use std::cell::RefCell;
 
-// --- Constants ---
+// --- Constants & Precomputation ---
 
-const INF: i32 = 1_000_000;
-const WIN_SCORE: i32 = 1_000_000;
-const TIME_CHECK_INTERVAL: u32 = 4095; // Check time every 4096 nodes
-const TT_CAPACITY: usize = 500_000;
-
-// Evaluation weights
-const EVAL_THREE: i32 = 1000;
-const EVAL_TWO: i32 = 50;
-const EVAL_ONE: i32 = 5;
-
-// TT flags
-const TT_EXACT: u8 = 0;
-const TT_LOWER: u8 = 1; // Score >= beta (cut-node)
-const TT_UPPER: u8 = 2; // Score <= alpha (all-node)
-
-// --- Data Structures ---
+// Bitboard representation: u64
+// 4x4x4 grid = 64 cells.
+// x, y, z -> bit index = y*16 + z*4 + x
 
 #[wasm_bindgen]
 #[derive(Clone, Copy, Serialize)]
@@ -32,12 +19,14 @@ pub struct Move {
     pub score: i32,
 }
 
-#[derive(Clone, Copy)]
-struct TTEntry {
-    depth: i8,
-    score: i32,
-    flag: u8,
-    best_move: u8, // Index 0-63, or 255 if none
+#[wasm_bindgen]
+#[derive(Clone, Copy, Serialize)]
+pub struct SearchResult {
+    pub x: u8,
+    pub y: u8,
+    pub z: u8,
+    pub score: i32,
+    pub depth: u8,
 }
 
 // --- Static Data (OnceLock for safe initialization) ---
@@ -150,6 +139,7 @@ fn generate_move_order() -> [u8; 64] {
         scored[i as usize] = (i, dx + dy + dz);
     }
 
+    // Sort by distance (ascending)
     scored.sort_by_key(|s| s.1);
 
     let mut order = [0u8; 64];
@@ -161,17 +151,28 @@ fn generate_move_order() -> [u8; 64] {
 
 // --- Transposition Table ---
 
-// Thread-local TT for Wasm (single-threaded)
-thread_local! {
-    static TT: RefCell<HashMap<u128, TTEntry>> = RefCell::new(HashMap::with_capacity(TT_CAPACITY));
-    static NODE_COUNT: RefCell<u32> = const { RefCell::new(0) };
+const TT_EXACT: u8 = 0;
+const TT_LOWER: u8 = 1; // Alpha cutoff (score >= beta)
+const TT_UPPER: u8 = 2; // Beta cutoff (score <= alpha)
+
+#[derive(Clone, Copy)]
+struct TTEntry {
+    depth: i8,
+    score: i32,
+    flag: u8,
+    best_move: u8, // Index 0-63
 }
 
-/// TT key includes both masks AND whose turn it is (bit 128)
-#[inline]
+// Thread-local TT for Wasm (single-threaded)
+// We persist TT across searches for better performance
+thread_local! {
+    static TT: RefCell<HashMap<u128, TTEntry>> = RefCell::new(HashMap::with_capacity(500_000));
+}
+
+/// TT key includes whose turn it is to avoid collisions
 fn tt_key(p1: u64, p2: u64, is_p1_turn: bool) -> u128 {
-    let base = ((p1 as u128) << 64) | (p2 as u128);
-    if is_p1_turn { base | (1u128 << 127) } else { base }
+    let turn_bit = if is_p1_turn { 1u128 } else { 0u128 };
+    ((p1 as u128) << 65) | ((p2 as u128) << 1) | turn_bit
 }
 
 fn tt_lookup(p1: u64, p2: u64, is_p1_turn: bool) -> Option<TTEntry> {
@@ -181,7 +182,7 @@ fn tt_lookup(p1: u64, p2: u64, is_p1_turn: bool) -> Option<TTEntry> {
 fn tt_store(p1: u64, p2: u64, is_p1_turn: bool, entry: TTEntry) {
     TT.with(|tt| {
         let mut table = tt.borrow_mut();
-        // Depth-preferred replacement: only replace if new entry is deeper or same depth
+        // Replace if new entry has greater or equal depth
         let key = tt_key(p1, p2, is_p1_turn);
         if let Some(existing) = table.get(&key) {
             if existing.depth > entry.depth {
@@ -192,22 +193,31 @@ fn tt_store(p1: u64, p2: u64, is_p1_turn: bool, entry: TTEntry) {
     });
 }
 
-/// Clear TT - call this when starting a new game, not every move
 #[wasm_bindgen]
-pub fn clear_transposition_table() {
+pub fn clear_tt() {
     TT.with(|tt| tt.borrow_mut().clear());
 }
 
 // --- Search Logic ---
 
+const INF: i32 = 1_000_000;
+const WIN_SCORE: i32 = 1_000_000;
+const TIME_CHECK_INTERVAL: u32 = 4095; // Check time every 4096 nodes
+
+// Thread-local state for search
+thread_local! {
+    static NODE_COUNT: RefCell<u32> = const { RefCell::new(0) };
+}
+
+/// Main entry point - returns result with depth info for progress display
 #[wasm_bindgen]
 pub fn get_best_move(
     p1_mask: u64,
     p2_mask: u64,
     ai_is_p1: bool,
-    time_limit_ms: f64
+    time_limit_ms: f64,
+    progress_callback: &js_sys::Function
 ) -> JsValue {
-    // Don't clear TT - persist across moves for better performance
     NODE_COUNT.with(|c| *c.borrow_mut() = 0);
 
     let start_time = js_sys::Date::now();
@@ -215,6 +225,7 @@ pub fn get_best_move(
 
     let mut best_move_idx: Option<u8> = None;
     let mut best_score = -INF;
+    let mut best_depth: u8 = 0;
 
     // Stack-allocated move buffer
     let mut moves = [0u8; 64];
@@ -229,20 +240,18 @@ pub fn get_best_move(
         if js_sys::Date::now() > stop_time { break; }
 
         let mut alpha = -INF;
-        let beta = INF;
+        let mut beta = INF;
         let mut current_best: Option<u8> = None;
         let mut max_eval = -INF;
         let mut time_abort = false;
 
-        // Check TT for best move from previous iteration to search first
-        let tt_best = tt_lookup(p1_mask, p2_mask, ai_is_p1).and_then(|e| {
-            if e.best_move < 64 { Some(e.best_move) } else { None }
-        });
+        // Try TT best move first if available
+        let mut ordered_moves = [0u8; 64];
+        let tt_best = tt_lookup(p1_mask, p2_mask, ai_is_p1).map(|e| e.best_move);
+        order_moves(&moves, move_count, tt_best, &mut ordered_moves);
 
-        // Order moves: TT best first, then standard order
-        let ordered_moves = order_moves_with_tt(&moves, move_count, tt_best);
-
-        for &m_idx in ordered_moves.iter().take(move_count) {
+        for i in 0..move_count {
+            let m_idx = ordered_moves[i];
             let bit = 1u64 << m_idx;
             let (new_p1, new_p2) = if ai_is_p1 {
                 (p1_mask | bit, p2_mask)
@@ -269,7 +278,7 @@ pub fn get_best_move(
 
             // Found forced win
             if score >= WIN_SCORE - 100 {
-                return serialize_move(Some(m_idx), score);
+                return serialize_result(Some(m_idx), score, depth as u8);
             }
         }
 
@@ -277,34 +286,51 @@ pub fn get_best_move(
             if let Some(m) = current_best {
                 best_move_idx = Some(m);
                 best_score = max_eval;
+                best_depth = depth as u8;
+
+                // Report progress to JS
+                let _ = progress_callback.call2(
+                    &JsValue::NULL,
+                    &JsValue::from(depth),
+                    &JsValue::from(max_eval)
+                );
             }
         }
     }
 
-    serialize_move(best_move_idx, best_score)
+    serialize_result(best_move_idx, best_score, best_depth)
 }
 
-/// Reorder moves so TT best move comes first
-fn order_moves_with_tt(moves: &[u8; 64], count: usize, tt_best: Option<u8>) -> [u8; 64] {
-    let mut ordered = *moves;
+/// Order moves with TT best move first
+fn order_moves(moves: &[u8; 64], count: usize, tt_best: Option<u8>, out: &mut [u8; 64]) {
+    let mut write_idx = 0;
+
+    // TT best move first
     if let Some(best) = tt_best {
-        // Find best move in list and swap to front
         for i in 0..count {
-            if ordered[i] == best {
-                ordered.swap(0, i);
+            if moves[i] == best {
+                out[write_idx] = best;
+                write_idx += 1;
                 break;
             }
         }
     }
-    ordered
+
+    // Rest of moves
+    for i in 0..count {
+        if Some(moves[i]) != tt_best {
+            out[write_idx] = moves[i];
+            write_idx += 1;
+        }
+    }
 }
 
-fn serialize_move(idx: Option<u8>, score: i32) -> JsValue {
+fn serialize_result(idx: Option<u8>, score: i32, depth: u8) -> JsValue {
     if let Some(i) = idx {
         let x = (i % 4) as u8;
         let z = ((i / 4) % 4) as u8;
         let y = (i / 16) as u8;
-        let m = Move { x, y, z, score };
+        let m = SearchResult { x, y, z, score, depth };
         serde_wasm_bindgen::to_value(&m).unwrap()
     } else {
         JsValue::NULL
@@ -334,7 +360,7 @@ fn negamax(
     stop_time: f64,
     time_abort: &mut bool
 ) -> i32 {
-    // Throttled time check
+    // Throttled time check (every 4096 nodes)
     NODE_COUNT.with(|c| {
         let mut count = c.borrow_mut();
         *count += 1;
@@ -357,15 +383,14 @@ fn negamax(
     // Transposition Table lookup
     let orig_alpha = alpha;
     let mut tt_best_move: Option<u8> = None;
-    
+
     if let Some(entry) = tt_lookup(p1, p2, is_p1_turn) {
-        tt_best_move = if entry.best_move < 64 { Some(entry.best_move) } else { None };
-        
+        tt_best_move = Some(entry.best_move);
         if entry.depth >= depth {
             match entry.flag {
                 TT_EXACT => return entry.score,
                 TT_LOWER => alpha = alpha.max(entry.score),
-                TT_UPPER => beta = beta.min(entry.score), // FIX: now properly updates beta
+                TT_UPPER => beta = beta.min(entry.score), // FIXED: Now actually uses upper bound
                 _ => {}
             }
             if alpha >= beta {
@@ -376,7 +401,8 @@ fn negamax(
 
     // Leaf node
     if depth <= 0 {
-        return evaluate(my_mask, opp_mask);
+        let score = evaluate(my_mask, opp_mask);
+        return score;
     }
 
     // Generate moves (stack allocated)
@@ -387,14 +413,15 @@ fn negamax(
         return 0; // Draw
     }
 
-    // Reorder moves with TT best first
-    let ordered = order_moves_with_tt(&moves, move_count, tt_best_move);
+    // Order moves with TT best first
+    let mut ordered_moves = [0u8; 64];
+    order_moves(&moves, move_count, tt_best_move, &mut ordered_moves);
 
     let mut max_val = -INF;
-    let mut best_move: u8 = ordered[0];
+    let mut best_move: u8 = ordered_moves[0];
 
     for i in 0..move_count {
-        let m_idx = ordered[i];
+        let m_idx = ordered_moves[i];
         let bit = 1u64 << m_idx;
         let (next_p1, next_p2) = if is_p1_turn {
             (p1 | bit, p2)
@@ -460,16 +487,16 @@ fn evaluate(my_mask: u64, opp_mask: u64) -> i32 {
 
         if opp_count == 0 {
             score += match my_count {
-                3 => EVAL_THREE,
-                2 => EVAL_TWO,
-                1 => EVAL_ONE,
+                3 => 1000,
+                2 => 50,
+                1 => 5,
                 _ => 0,
             };
         } else if my_count == 0 {
             score -= match opp_count {
-                3 => EVAL_THREE,
-                2 => EVAL_TWO,
-                1 => EVAL_ONE,
+                3 => 1000,
+                2 => 50,
+                1 => 5,
                 _ => 0,
             };
         }

@@ -66,22 +66,100 @@ export class Move {
 }
 if (Symbol.dispose) Move.prototype[Symbol.dispose] = Move.prototype.free;
 
-/**
- * Clear TT - call this when starting a new game, not every move
- */
-export function clear_transposition_table() {
-    wasm.clear_transposition_table();
+export class SearchResult {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        SearchResultFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_searchresult_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get depth() {
+        const ret = wasm.__wbg_get_searchresult_depth(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get score() {
+        const ret = wasm.__wbg_get_move_score(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get x() {
+        const ret = wasm.__wbg_get_move_x(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get y() {
+        const ret = wasm.__wbg_get_move_y(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get z() {
+        const ret = wasm.__wbg_get_move_z(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set depth(arg0) {
+        wasm.__wbg_set_searchresult_depth(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set score(arg0) {
+        wasm.__wbg_set_move_score(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set x(arg0) {
+        wasm.__wbg_set_move_x(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set y(arg0) {
+        wasm.__wbg_set_move_y(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set z(arg0) {
+        wasm.__wbg_set_move_z(this.__wbg_ptr, arg0);
+    }
+}
+if (Symbol.dispose) SearchResult.prototype[Symbol.dispose] = SearchResult.prototype.free;
+
+export function clear_tt() {
+    wasm.clear_tt();
 }
 
 /**
+ * Main entry point - returns result with depth info for progress display
  * @param {bigint} p1_mask
  * @param {bigint} p2_mask
  * @param {boolean} ai_is_p1
  * @param {number} time_limit_ms
+ * @param {Function} progress_callback
  * @returns {any}
  */
-export function get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms) {
-    const ret = wasm.get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms);
+export function get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms, progress_callback) {
+    const ret = wasm.get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms, progress_callback);
     return ret;
 }
 
@@ -98,6 +176,10 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_be289d5034ed271b: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
+        __wbg_call_812d25f1510c13c8: function() { return handleError(function (arg0, arg1, arg2, arg3) {
+            const ret = arg0.call(arg1, arg2, arg3);
+            return ret;
+        }, arguments); },
         __wbg_new_361308b2356cecd0: function() {
             const ret = new Object();
             return ret;
@@ -138,6 +220,15 @@ function __wbg_get_imports() {
 const MoveFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_move_free(ptr >>> 0, 1));
+const SearchResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_searchresult_free(ptr >>> 0, 1));
+
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_externrefs.set(idx, obj);
+    return idx;
+}
 
 function debugString(val) {
     // primitive types
@@ -223,6 +314,15 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        const idx = addToExternrefTable0(e);
+        wasm.__wbindgen_exn_store(idx);
+    }
 }
 
 function passStringToWasm0(arg, malloc, realloc) {

@@ -1,14 +1,19 @@
-import init, { get_best_move } from './tic-tac-toe-ai/pkg/tic_tac_toe_ai.js';
+import init, { get_best_move, clear_tt } from './tic-tac-toe-ai/pkg/tic_tac_toe_ai.js';
 
 let isInitialized = false;
 
 self.onmessage = async function (e) {
-    const { type, p1Mask, p2Mask, aiIsPlayer1, timeLimit } = e.data;
+    const { type, p1Mask, p2Mask, aiIsPlayer1, timeLimit, clearCache } = e.data;
 
     if (type === 'stop') {
-        // Since Wasm is synchronous, we can't interrupt mid-computation easily.
-        // We just ignore the next result if we could, but here we just return.
-        // (Real cancellation requires SharedArrayBuffer flags or polling time in Wasm, which we do)
+        // Wasm respects time limits internally, so "stop" is handled by the time check
+        return;
+    }
+
+    if (type === 'clear_cache') {
+        if (isInitialized) {
+            clear_tt();
+        }
         return;
     }
 
@@ -17,15 +22,39 @@ self.onmessage = async function (e) {
         isInitialized = true;
     }
 
+    // Clear TT on new game if requested
+    if (clearCache) {
+        clear_tt();
+    }
+
     // p1Mask, p2Mask are strings or BigInts
     const p1 = BigInt(p1Mask);
     const p2 = BigInt(p2Mask);
 
+    // Progress callback - called by Wasm after each depth completes
+    const progressCallback = (depth, score) => {
+        self.postMessage({ type: 'progress', depth, score });
+    };
+
     try {
-        const move = get_best_move(p1, p2, aiIsPlayer1, timeLimit);
-        // move is {x, y, z, score}
-        self.postMessage({ type: 'result', move });
+        const result = get_best_move(p1, p2, aiIsPlayer1, timeLimit, progressCallback);
+        // result is {x, y, z, score, depth}
+        if (result) {
+            self.postMessage({
+                type: 'result',
+                move: {
+                    x: result.x,
+                    y: result.y,
+                    z: result.z,
+                    score: result.score,
+                    depth: result.depth
+                }
+            });
+        } else {
+            self.postMessage({ type: 'result', move: null });
+        }
     } catch (err) {
         console.error("Wasm AI Error:", err);
+        self.postMessage({ type: 'error', message: err.toString() });
     }
 };
