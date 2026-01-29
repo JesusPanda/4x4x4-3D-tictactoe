@@ -26,6 +26,13 @@ export class SearchResult {
         return ret;
     }
     /**
+     * @returns {boolean}
+     */
+    get time_abort() {
+        const ret = wasm.__wbg_get_searchresult_time_abort(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
      * @returns {number}
      */
     get x() {
@@ -59,6 +66,12 @@ export class SearchResult {
         wasm.__wbg_set_searchresult_score(this.__wbg_ptr, arg0);
     }
     /**
+     * @param {boolean} arg0
+     */
+    set time_abort(arg0) {
+        wasm.__wbg_set_searchresult_time_abort(this.__wbg_ptr, arg0);
+    }
+    /**
      * @param {number} arg0
      */
     set x(arg0) {
@@ -84,15 +97,17 @@ export function clear_tt() {
 }
 
 /**
- * Main entry point - simple signature, returns result with depth
+ * Runs ONE depth of the search.
+ * Returns SearchResult. If time_abort is true, score is invalid.
  * @param {bigint} p1_mask
  * @param {bigint} p2_mask
  * @param {boolean} ai_is_p1
- * @param {number} time_limit_ms
+ * @param {number} depth
+ * @param {number} stop_time
  * @returns {any}
  */
-export function get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms) {
-    const ret = wasm.get_best_move(p1_mask, p2_mask, ai_is_p1, time_limit_ms);
+export function search_depth(p1_mask, p2_mask, ai_is_p1, depth, stop_time) {
+    const ret = wasm.search_depth(p1_mask, p2_mask, ai_is_p1, depth, stop_time);
     return ret;
 }
 

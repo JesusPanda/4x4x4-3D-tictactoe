@@ -7,6 +7,7 @@ export class SearchResult {
     [Symbol.dispose](): void;
     depth: number;
     score: number;
+    time_abort: boolean;
     x: number;
     y: number;
     z: number;
@@ -15,9 +16,10 @@ export class SearchResult {
 export function clear_tt(): void;
 
 /**
- * Main entry point - simple signature, returns result with depth
+ * Runs ONE depth of the search.
+ * Returns SearchResult. If time_abort is true, score is invalid.
  */
-export function get_best_move(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, time_limit_ms: number): any;
+export function search_depth(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, depth: number, stop_time: number): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -25,16 +27,18 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_get_searchresult_depth: (a: number) => number;
     readonly __wbg_get_searchresult_score: (a: number) => number;
+    readonly __wbg_get_searchresult_time_abort: (a: number) => number;
     readonly __wbg_get_searchresult_x: (a: number) => number;
     readonly __wbg_get_searchresult_y: (a: number) => number;
     readonly __wbg_get_searchresult_z: (a: number) => number;
     readonly __wbg_searchresult_free: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_depth: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_score: (a: number, b: number) => void;
+    readonly __wbg_set_searchresult_time_abort: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_x: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_y: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_z: (a: number, b: number) => void;
-    readonly get_best_move: (a: bigint, b: bigint, c: number, d: number) => any;
+    readonly search_depth: (a: bigint, b: bigint, c: number, d: number, e: number) => any;
     readonly clear_tt: () => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
