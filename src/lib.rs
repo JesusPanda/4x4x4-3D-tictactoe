@@ -1,7 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::Serialize;
 use std::sync::OnceLock;
-use std::collections::HashMap;
 use std::cell::RefCell;
 
 // --- Constants ---
@@ -9,7 +8,7 @@ use std::cell::RefCell;
 const INF: i32 = 1_000_000;
 const WIN_SCORE: i32 = 1_000_000;
 const TIME_CHECK_INTERVAL: u32 = 4095; // Check time every 4096 nodes
-const TT_CAPACITY: usize = 500_000;
+const TT_CAPACITY: usize = 524_288; // Power of 2 (2^19)
 
 // Evaluation weights
 const EVAL_THREE: i32 = 1000;
@@ -34,19 +33,31 @@ pub struct Move {
 
 #[derive(Clone, Copy)]
 struct TTEntry {
+    key: u128,
     depth: i8,
     score: i32,
     flag: u8,
     best_move: u8, // Index 0-63, or 255 if none
 }
 
+impl Default for TTEntry {
+    fn default() -> Self {
+        Self { key: 0, depth: -1, score: 0, flag: TT_EXACT, best_move: 255 }
+    }
+}
+
 // --- Static Data (OnceLock for safe initialization) ---
 
 static WINNING_LINES: OnceLock<[u64; 76]> = OnceLock::new();
 static MOVE_ORDER: OnceLock<[u8; 64]> = OnceLock::new();
+static LINES_BY_CELL: OnceLock<Vec<Vec<usize>>> = OnceLock::new();
 
 fn get_winning_lines() -> &'static [u64; 76] {
     WINNING_LINES.get_or_init(generate_winning_lines)
+}
+
+fn get_lines_by_cell() -> &'static Vec<Vec<usize>> {
+    LINES_BY_CELL.get_or_init(generate_lines_by_cell)
 }
 
 fn get_move_order() -> &'static [u8; 64] {
@@ -137,6 +148,20 @@ fn generate_winning_lines() -> [u64; 76] {
     lines
 }
 
+fn generate_lines_by_cell() -> Vec<Vec<usize>> {
+    let lines = get_winning_lines();
+    let mut lookup = vec![Vec::new(); 64];
+
+    for (line_idx, &line_mask) in lines.iter().enumerate() {
+        for cell_idx in 0..64 {
+            if (line_mask & (1u64 << cell_idx)) != 0 {
+                lookup[cell_idx].push(line_idx);
+            }
+        }
+    }
+    lookup
+}
+
 fn generate_move_order() -> [u8; 64] {
     let mut scored: [(u8, i32); 64] = [(0, 0); 64];
     for i in 0..64u8 {
@@ -163,7 +188,7 @@ fn generate_move_order() -> [u8; 64] {
 
 // Thread-local TT for Wasm (single-threaded)
 thread_local! {
-    static TT: RefCell<HashMap<u128, TTEntry>> = RefCell::new(HashMap::with_capacity(TT_CAPACITY));
+    static TT: RefCell<Vec<TTEntry>> = RefCell::new(vec![TTEntry::default(); TT_CAPACITY]);
     static NODE_COUNT: RefCell<u32> = const { RefCell::new(0) };
 }
 
@@ -175,27 +200,46 @@ fn tt_key(p1: u64, p2: u64, is_p1_turn: bool) -> u128 {
 }
 
 fn tt_lookup(p1: u64, p2: u64, is_p1_turn: bool) -> Option<TTEntry> {
-    TT.with(|tt| tt.borrow().get(&tt_key(p1, p2, is_p1_turn)).copied())
+    let key = tt_key(p1, p2, is_p1_turn);
+    let idx = (key as usize) & (TT_CAPACITY - 1);
+
+    TT.with(|tt| {
+        let table = tt.borrow();
+        let entry = table[idx];
+        if entry.key == key {
+            Some(entry)
+        } else {
+            None
+        }
+    })
 }
 
-fn tt_store(p1: u64, p2: u64, is_p1_turn: bool, entry: TTEntry) {
+fn tt_store(p1: u64, p2: u64, is_p1_turn: bool, mut entry: TTEntry) {
+    let key = tt_key(p1, p2, is_p1_turn);
+    let idx = (key as usize) & (TT_CAPACITY - 1);
+    entry.key = key;
+
     TT.with(|tt| {
         let mut table = tt.borrow_mut();
-        // Depth-preferred replacement: only replace if new entry is deeper or same depth
-        let key = tt_key(p1, p2, is_p1_turn);
-        if let Some(existing) = table.get(&key) {
-            if existing.depth > entry.depth {
-                return; // Keep deeper entry
-            }
+        let existing = table[idx];
+
+        // Always replace if collision (different key)
+        // If same key (same position), replace if deeper
+        if existing.key != key || entry.depth >= existing.depth {
+             table[idx] = entry;
         }
-        table.insert(key, entry);
     });
 }
 
 /// Clear TT - call this when starting a new game, not every move
 #[wasm_bindgen]
 pub fn clear_transposition_table() {
-    TT.with(|tt| tt.borrow_mut().clear());
+    TT.with(|tt| {
+        let mut table = tt.borrow_mut();
+        for entry in table.iter_mut() {
+            *entry = TTEntry::default();
+        }
+    });
 }
 
 // --- Search Logic ---
@@ -224,6 +268,8 @@ pub fn get_best_move(
         return JsValue::NULL;
     }
 
+    let initial_score = evaluate_heuristic(p1_mask, p2_mask);
+
     // Iterative Deepening
     for depth in 1i8..=14 {
         if js_sys::Date::now() > stop_time { break; }
@@ -250,13 +296,17 @@ pub fn get_best_move(
                 (p1_mask, p2_mask | bit)
             };
 
+            let new_score = update_score(initial_score, p1_mask, p2_mask, m_idx, ai_is_p1);
+
             let score = -negamax(
                 new_p1, new_p2,
                 depth - 1,
                 -beta, -alpha,
                 !ai_is_p1,
                 stop_time,
-                &mut time_abort
+                &mut time_abort,
+                Some(m_idx),
+                new_score
             );
 
             if time_abort { break; }
@@ -332,7 +382,9 @@ fn negamax(
     mut alpha: i32, mut beta: i32,
     is_p1_turn: bool,
     stop_time: f64,
-    time_abort: &mut bool
+    time_abort: &mut bool,
+    last_move: Option<u8>,
+    current_score_p1: i32
 ) -> i32 {
     // Throttled time check
     NODE_COUNT.with(|c| {
@@ -346,11 +398,10 @@ fn negamax(
     });
     if *time_abort { return 0; }
 
-    let my_mask = if is_p1_turn { p1 } else { p2 };
     let opp_mask = if is_p1_turn { p2 } else { p1 };
 
     // Terminal: opponent won (they just moved)
-    if check_win(opp_mask) {
+    if check_win(opp_mask, last_move) {
         return -WIN_SCORE - (depth as i32);
     }
 
@@ -376,7 +427,7 @@ fn negamax(
 
     // Leaf node
     if depth <= 0 {
-        return evaluate(my_mask, opp_mask);
+        return if is_p1_turn { current_score_p1 } else { -current_score_p1 };
     }
 
     // Generate moves (stack allocated)
@@ -402,13 +453,17 @@ fn negamax(
             (p1, p2 | bit)
         };
 
+        let new_score = update_score(current_score_p1, p1, p2, m_idx, is_p1_turn);
+
         let val = -negamax(
             next_p1, next_p2,
             depth - 1,
             -beta, -alpha,
             !is_p1_turn,
             stop_time,
-            time_abort
+            time_abort,
+            Some(m_idx),
+            new_score
         );
 
         if *time_abort { return 0; }
@@ -431,48 +486,76 @@ fn negamax(
     } else {
         TT_EXACT
     };
-    tt_store(p1, p2, is_p1_turn, TTEntry { depth, score: max_val, flag, best_move });
+    tt_store(p1, p2, is_p1_turn, TTEntry { depth, score: max_val, flag, best_move, key: 0 });
 
     max_val
 }
 
 #[inline]
-fn check_win(mask: u64) -> bool {
+fn check_win(mask: u64, last_move: Option<u8>) -> bool {
     let lines = get_winning_lines();
-    for &line in lines.iter() {
-        if (mask & line) == line {
-            return true;
+    if let Some(idx) = last_move {
+        let indices = &get_lines_by_cell()[idx as usize];
+        for &i in indices {
+            if (mask & lines[i]) == lines[i] {
+                return true;
+            }
+        }
+    } else {
+        for &line in lines.iter() {
+            if (mask & line) == line {
+                return true;
+            }
         }
     }
     false
 }
 
-fn evaluate(my_mask: u64, opp_mask: u64) -> i32 {
-    let lines = get_winning_lines();
-    let mut score = 0i32;
-
-    for &line in lines.iter() {
-        let my_count = (my_mask & line).count_ones();
-        let opp_count = (opp_mask & line).count_ones();
-
-        if my_count == 4 { return WIN_SCORE; }
-        if opp_count == 4 { return -WIN_SCORE; }
-
-        if opp_count == 0 {
-            score += match my_count {
-                3 => EVAL_THREE,
-                2 => EVAL_TWO,
-                1 => EVAL_ONE,
-                _ => 0,
-            };
-        } else if my_count == 0 {
-            score -= match opp_count {
-                3 => EVAL_THREE,
-                2 => EVAL_TWO,
-                1 => EVAL_ONE,
-                _ => 0,
-            };
+fn score_line(p1_count: u32, p2_count: u32) -> i32 {
+    if p2_count == 0 {
+        match p1_count {
+            3 => EVAL_THREE,
+            2 => EVAL_TWO,
+            1 => EVAL_ONE,
+            _ => 0,
         }
+    } else if p1_count == 0 {
+        match p2_count {
+            3 => -EVAL_THREE,
+            2 => -EVAL_TWO,
+            1 => -EVAL_ONE,
+            _ => 0,
+        }
+    } else {
+        0
+    }
+}
+
+fn evaluate_heuristic(p1: u64, p2: u64) -> i32 {
+    let lines = get_winning_lines();
+    let mut score = 0;
+    for &line in lines.iter() {
+        let c1 = (p1 & line).count_ones();
+        let c2 = (p2 & line).count_ones();
+        score += score_line(c1, c2);
     }
     score
+}
+
+fn update_score(mut current_score: i32, p1: u64, p2: u64, move_idx: u8, is_p1_turn: bool) -> i32 {
+    let lines = get_winning_lines();
+    let indices = &get_lines_by_cell()[move_idx as usize];
+
+    for &i in indices {
+        let line = lines[i];
+        let mut c1 = (p1 & line).count_ones();
+        let mut c2 = (p2 & line).count_ones();
+
+        current_score -= score_line(c1, c2);
+
+        if is_p1_turn { c1 += 1; } else { c2 += 1; }
+
+        current_score += score_line(c1, c2);
+    }
+    current_score
 }

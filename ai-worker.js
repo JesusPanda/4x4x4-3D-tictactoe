@@ -1,4 +1,4 @@
-import init, { get_best_move } from './tic-tac-toe-ai/pkg/tic_tac_toe_ai.js';
+import init, { get_best_move } from './pkg/tic_tac_toe_ai.js';
 
 let isInitialized = false;
 

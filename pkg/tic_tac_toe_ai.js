@@ -106,7 +106,7 @@ function __wbg_get_imports() {
             const ret = Date.now();
             return ret;
         },
-        __wbg_set_3807d5f0bfc24aa7: function(arg0, arg1, arg2) {
+        __wbg_set_3f1d0b984ed272ed: function(arg0, arg1, arg2) {
             arg0[arg1] = arg2;
         },
         __wbindgen_cast_0000000000000001: function(arg0) {
