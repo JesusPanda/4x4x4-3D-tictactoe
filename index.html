@@ -370,6 +370,35 @@
                 content: '...';
             }
         }
+        .custom-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .diff-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 80px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .diff-input:focus {
+            border-color: #00ccff;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .diff-input:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: transparent;
+        }
     </style>
     <!-- Import Maps Polyfill -->
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
@@ -431,10 +460,11 @@
             <div class="difficulty-section">
                 <label>AI Think Time</label>
                 <div class="difficulty-buttons">
-                    <button class="diff-btn" data-time="1000">1s</button>
-                    <button class="diff-btn active" data-time="3000">3s</button>
-                    <button class="diff-btn" data-time="5000">5s</button>
-                    <button class="diff-btn" data-time="10000">10s</button>
+                    <button class="diff-btn active" id="btn-5s">5 Seconds</button>
+                    <div class="custom-input-wrapper">
+                        <button class="diff-btn" id="btn-custom">Custom</button>
+                        <input type="text" id="custom-time-input" class="diff-input" placeholder="Secs" disabled>
+                    </div>
                 </div>
             </div>
             <button class="back-btn" id="btn-back">← Back</button>
@@ -485,7 +515,7 @@
             // PvE settings
             gameMode: null, // 'pvp' or 'pve' - null means menu is showing
             playerGoesFirst: true,
-            timeLimit: 3000, // AI think time in milliseconds
+            timeLimit: 5000, // AI think time in milliseconds (Default 5s)
             aiThinking: false,
             aiPlayer: 2 // Which player the AI controls (1 or 2)
         };
@@ -1308,13 +1338,49 @@
             mainMenu.classList.remove('hidden');
         };
 
-        // Time Limit Buttons
-        diffButtons.forEach(btn => {
-            btn.onclick = () => {
-                diffButtons.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                STATE.timeLimit = parseInt(btn.dataset.time, 10);
-            };
+        // Time Limit Selection
+        const btn5s = document.getElementById('btn-5s');
+        const btnCustom = document.getElementById('btn-custom');
+        const customInput = document.getElementById('custom-time-input');
+
+        function setTimeLimit(mode) {
+            if (mode === '5s') {
+                btn5s.classList.add('active');
+                btnCustom.classList.remove('active');
+                customInput.disabled = true;
+                // customInput.value = ''; // Optional: clear or keep
+                STATE.timeLimit = 5000;
+            } else if (mode === 'custom') {
+                btn5s.classList.remove('active');
+                btnCustom.classList.add('active');
+                customInput.disabled = false;
+                customInput.focus();
+                updateCustomTime();
+            }
+        }
+
+        function updateCustomTime() {
+            let val = customInput.value.replace(/[^0-9]/g, '');
+            customInput.value = val;
+            
+            if (val && parseInt(val, 10) > 0) {
+                STATE.timeLimit = parseInt(val, 10) * 1000;
+            } else {
+                // If empty or 0, fallback to a minimal safe value or wait
+                // Let's keep the last valid State or default to 1s if completely invalid at runtime
+                // But for now, just don't set a potentially weird 0
+                if (val === '0') STATE.timeLimit = 1000; 
+            }
+        }
+
+        btn5s.onclick = () => setTimeLimit('5s');
+        btnCustom.onclick = () => setTimeLimit('custom');
+
+        customInput.addEventListener('input', updateCustomTime);
+        
+        // Auto-select custom if they click the input
+        customInput.addEventListener('click', () => {
+             setTimeLimit('custom');
         });
 
         // Start PvE - Player goes first
