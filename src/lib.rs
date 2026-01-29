@@ -12,15 +12,6 @@ use std::cell::RefCell;
 
 #[wasm_bindgen]
 #[derive(Clone, Copy, Serialize)]
-pub struct Move {
-    pub x: u8,
-    pub y: u8,
-    pub z: u8,
-    pub score: i32,
-}
-
-#[wasm_bindgen]
-#[derive(Clone, Copy, Serialize)]
 pub struct SearchResult {
     pub x: u8,
     pub y: u8,
@@ -164,7 +155,6 @@ struct TTEntry {
 }
 
 // Thread-local TT for Wasm (single-threaded)
-// We persist TT across searches for better performance
 thread_local! {
     static TT: RefCell<HashMap<u128, TTEntry>> = RefCell::new(HashMap::with_capacity(500_000));
 }
@@ -182,11 +172,11 @@ fn tt_lookup(p1: u64, p2: u64, is_p1_turn: bool) -> Option<TTEntry> {
 fn tt_store(p1: u64, p2: u64, is_p1_turn: bool, entry: TTEntry) {
     TT.with(|tt| {
         let mut table = tt.borrow_mut();
-        // Replace if new entry has greater or equal depth
         let key = tt_key(p1, p2, is_p1_turn);
+        // Replace if new entry has greater or equal depth
         if let Some(existing) = table.get(&key) {
             if existing.depth > entry.depth {
-                return; // Keep deeper entry
+                return;
             }
         }
         table.insert(key, entry);
@@ -209,14 +199,13 @@ thread_local! {
     static NODE_COUNT: RefCell<u32> = const { RefCell::new(0) };
 }
 
-/// Main entry point - returns result with depth info for progress display
+/// Main entry point - simple signature, returns result with depth
 #[wasm_bindgen]
 pub fn get_best_move(
     p1_mask: u64,
     p2_mask: u64,
     ai_is_p1: bool,
-    time_limit_ms: f64,
-    progress_callback: &js_sys::Function
+    time_limit_ms: f64
 ) -> JsValue {
     NODE_COUNT.with(|c| *c.borrow_mut() = 0);
 
@@ -237,10 +226,13 @@ pub fn get_best_move(
 
     // Iterative Deepening
     for depth in 1i8..=14 {
-        if js_sys::Date::now() > stop_time { break; }
+        // Check time at start of each depth
+        if js_sys::Date::now() > stop_time { 
+            break; 
+        }
 
         let mut alpha = -INF;
-        let mut beta = INF;
+        let beta = INF;
         let mut current_best: Option<u8> = None;
         let mut max_eval = -INF;
         let mut time_abort = false;
@@ -282,18 +274,12 @@ pub fn get_best_move(
             }
         }
 
+        // Only update best if we completed this depth without time abort
         if !time_abort {
             if let Some(m) = current_best {
                 best_move_idx = Some(m);
                 best_score = max_eval;
                 best_depth = depth as u8;
-
-                // Report progress to JS
-                let _ = progress_callback.call2(
-                    &JsValue::NULL,
-                    &JsValue::from(depth),
-                    &JsValue::from(max_eval)
-                );
             }
         }
     }
@@ -390,7 +376,7 @@ fn negamax(
             match entry.flag {
                 TT_EXACT => return entry.score,
                 TT_LOWER => alpha = alpha.max(entry.score),
-                TT_UPPER => beta = beta.min(entry.score), // FIXED: Now actually uses upper bound
+                TT_UPPER => beta = beta.min(entry.score),
                 _ => {}
             }
             if alpha >= beta {

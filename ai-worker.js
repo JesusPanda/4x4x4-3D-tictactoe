@@ -6,7 +6,7 @@ self.onmessage = async function (e) {
     const { type, p1Mask, p2Mask, aiIsPlayer1, timeLimit, clearCache } = e.data;
 
     if (type === 'stop') {
-        // Wasm respects time limits internally, so "stop" is handled by the time check
+        // Wasm respects time limits internally via throttled checks
         return;
     }
 
@@ -31,15 +31,19 @@ self.onmessage = async function (e) {
     const p1 = BigInt(p1Mask);
     const p2 = BigInt(p2Mask);
 
-    // Progress callback - called by Wasm after each depth completes
-    const progressCallback = (depth, score) => {
-        self.postMessage({ type: 'progress', depth, score });
-    };
-
     try {
-        const result = get_best_move(p1, p2, aiIsPlayer1, timeLimit, progressCallback);
-        // result is {x, y, z, score, depth}
+        // Simple call - 4 arguments, returns result with depth
+        const result = get_best_move(p1, p2, aiIsPlayer1, timeLimit);
+
         if (result) {
+            // Send progress with final depth reached
+            self.postMessage({
+                type: 'progress',
+                depth: result.depth,
+                score: result.score
+            });
+
+            // Send result
             self.postMessage({
                 type: 'result',
                 move: {

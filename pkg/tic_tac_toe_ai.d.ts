@@ -1,16 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export class Move {
-    private constructor();
-    free(): void;
-    [Symbol.dispose](): void;
-    score: number;
-    x: number;
-    y: number;
-    z: number;
-}
-
 export class SearchResult {
     private constructor();
     free(): void;
@@ -25,40 +15,29 @@ export class SearchResult {
 export function clear_tt(): void;
 
 /**
- * Main entry point - returns result with depth info for progress display
+ * Main entry point - simple signature, returns result with depth
  */
-export function get_best_move(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, time_limit_ms: number, progress_callback: Function): any;
+export function get_best_move(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, time_limit_ms: number): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly __wbg_get_move_score: (a: number) => number;
-    readonly __wbg_get_move_x: (a: number) => number;
-    readonly __wbg_get_move_y: (a: number) => number;
-    readonly __wbg_get_move_z: (a: number) => number;
     readonly __wbg_get_searchresult_depth: (a: number) => number;
-    readonly __wbg_move_free: (a: number, b: number) => void;
-    readonly __wbg_searchresult_free: (a: number, b: number) => void;
-    readonly __wbg_set_move_score: (a: number, b: number) => void;
-    readonly __wbg_set_move_x: (a: number, b: number) => void;
-    readonly __wbg_set_move_y: (a: number, b: number) => void;
-    readonly __wbg_set_move_z: (a: number, b: number) => void;
-    readonly __wbg_set_searchresult_depth: (a: number, b: number) => void;
-    readonly get_best_move: (a: bigint, b: bigint, c: number, d: number, e: any) => any;
-    readonly __wbg_set_searchresult_score: (a: number, b: number) => void;
-    readonly clear_tt: () => void;
+    readonly __wbg_get_searchresult_score: (a: number) => number;
     readonly __wbg_get_searchresult_x: (a: number) => number;
     readonly __wbg_get_searchresult_y: (a: number) => number;
     readonly __wbg_get_searchresult_z: (a: number) => number;
-    readonly __wbg_get_searchresult_score: (a: number) => number;
+    readonly __wbg_searchresult_free: (a: number, b: number) => void;
+    readonly __wbg_set_searchresult_depth: (a: number, b: number) => void;
+    readonly __wbg_set_searchresult_score: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_x: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_y: (a: number, b: number) => void;
     readonly __wbg_set_searchresult_z: (a: number, b: number) => void;
+    readonly get_best_move: (a: bigint, b: bigint, c: number, d: number) => any;
+    readonly clear_tt: () => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
-    readonly __wbindgen_exn_store: (a: number) => void;
-    readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_start: () => void;
 }
