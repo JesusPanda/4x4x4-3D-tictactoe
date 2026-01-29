@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4x4x4 3D Tic-Tac-Toe</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Inter', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            user-select: none;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 20px 25px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        #info h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        #info p {
+            margin: 8px 0 0;
+            opacity: 0.6;
+            font-size: 12px;
+        }
+
+        #turn-indicator {
+            margin-top: 15px;
+            font-weight: 500;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        #notification {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 20px 30px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transform: translate(-150%, -50%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        #notification.show {
+            transform: translate(0, -50%);
+        }
+
+        #scoreboard {
+            margin-top: 12px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            display: flex;
+            gap: 20px;
+        }
+
+        #scoreboard strong {
+            color: white;
+        }
+
+        #undo-container {
+            margin-top: 12px;
+            pointer-events: auto;
+        }
+
+        #undo-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        #undo-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-reset:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.1));
+            transform: translateY(-1px);
+        }
+
+        /* Menu System Styles */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .menu-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 40px 50px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-card h2 {
+            color: white;
+            margin: 0 0 30px 0;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .menu-btn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 16px 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.25s ease;
+        }
+
+        .menu-btn:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.1));
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .menu-btn.primary {
+            background: linear-gradient(135deg, #00ccff, #0088cc);
+            border-color: #00ccff;
+        }
+
+        .menu-btn.primary:hover {
+            background: linear-gradient(135deg, #33ddff, #00aaee);
+            box-shadow: 0 4px 20px rgba(0, 204, 255, 0.4);
+        }
+
+        .menu-btn.secondary {
+            background: linear-gradient(135deg, #ff8800, #cc6600);
+            border-color: #ff8800;
+        }
+
+        .menu-btn.secondary:hover {
+            background: linear-gradient(135deg, #ff9922, #ee7700);
+            box-shadow: 0 4px 20px rgba(255, 136, 0, 0.4);
+        }
+
+        .menu-row {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .difficulty-section {
+            margin: 25px 0;
+        }
+
+        .difficulty-section label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        .difficulty-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .diff-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.7);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .diff-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .diff-btn.active {
+            background: rgba(0, 204, 255, 0.3);
+            border-color: #00ccff;
+            color: #00ccff;
+        }
+
+        .back-btn {
+            margin-top: 20px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 10px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        #ai-thinking {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            color: #00ccff;
+            font-size: 14px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 204, 255, 0.3);
+        }
+
+        #ai-thinking.show {
+            display: flex;
+        }
+
+        .ai-thinking-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #ai-timer {
+            font-family: monospace;
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        #ai-depth {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #play-now-btn {
+            background: linear-gradient(135deg, #ff8800, #cc6600);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        #play-now-btn:hover {
+            background: linear-gradient(135deg, #ff9922, #ee7700);
+            box-shadow: 0 2px 10px rgba(255, 136, 0, 0.4);
+        }
+
+        .thinking-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+
+            0%,
+            20% {
+                content: '.';
+            }
+
+            40% {
+                content: '..';
+            }
+
+            60%,
+            100% {
+                content: '...';
+            }
+        }
+    </style>
+    <!-- Import Maps Polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="info">
+        <h1>4x4x4 Tic-Tac-Toe</h1>
+        <p>Rotate: Left Click + Drag | Pan: Right Click | Zoom: Scroll</p>
+        <div id="turn-indicator">
+            Current Turn: <span id="turn-text" style="color: #44aa88;">Player 1</span> <span id="turn-dot" class="dot"
+                style="background-color: #44aa88;"></span>
+        </div>
+        <div id="scoreboard">
+            <span>P1 Wins: <strong id="score-p1">0</strong></span>
+            <span>P2 Wins: <strong id="score-p2">0</strong></span>
+        </div>
+        <div id="undo-container">
+            <button id="undo-btn">
+                &#8630; Undo <span style="opacity: 0.6;">(Z)</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="notification">
+        <span id="notif-text">Player 1 Wins!</span>
+        <button class="btn-reset" id="notif-btn">New Game</button>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-overlay">
+        <div class="menu-card">
+            <h2>4x4x4 Tic-Tac-Toe</h2>
+            <div class="menu-buttons">
+                <button class="menu-btn primary" id="btn-pvp">Player vs Player</button>
+                <button class="menu-btn secondary" id="btn-pve">vs AI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PvE Setup Menu -->
+    <div id="pve-menu" class="menu-overlay hidden">
+        <div class="menu-card">
+            <h2>AI Settings</h2>
+            <p style="color: rgba(255,255,255,0.7); margin-bottom: 20px;">Choose your side</p>
+            <div class="menu-row">
+                <button class="menu-btn primary" id="btn-first">Play First</button>
+                <button class="menu-btn secondary" id="btn-second">Play Second</button>
+            </div>
+            <div class="difficulty-section">
+                <label>AI Think Time</label>
+                <div class="difficulty-buttons">
+                    <button class="diff-btn" data-time="1000">1s</button>
+                    <button class="diff-btn active" data-time="3000">3s</button>
+                    <button class="diff-btn" data-time="5000">5s</button>
+                    <button class="diff-btn" data-time="10000">10s</button>
+                </div>
+            </div>
+            <button class="back-btn" id="btn-back">← Back</button>
+        </div>
+    </div>
+
+    <!-- AI Thinking Indicator -->
+    <div id="ai-thinking">
+        <div class="ai-thinking-row">
+            <span>🤖 AI is thinking</span><span class="thinking-dots"></span>
+        </div>
+        <div class="ai-thinking-row">
+            <span id="ai-timer">0.0s</span>
+            <span id="ai-depth"></span>
+        </div>
+        <button id="play-now-btn">▶ Play Now</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import GUI from 'three/addons/libs/lil-gui.module.min.js';
+
+        // --- Configuration & Constants ---
+        const CONFIG = {
+            gridSize: 4,
+            spacing: 2.0, // Increased spacing for better look
+            layerSpacingCompact: 2.0,
+            layerSpacingExploded: 7.0,
+            backgroundColor: '#000000',
+            gridColor: '#0eff0a',
+            hoverColor: '#ffffff',
+            p1Color: '#00ccff', // Cyan-ish
+            p2Color: '#ff8800', // Orange-ish
+            gridThickness: 0.05, // Increased thickness
+            sphereSize: 0.6,
+            animDuration: 0.8 // seconds
+        };
+
+        const STATE = {
+            mode: 'Immersive', // 'Immersive' or 'Layered'
+            turn: 1, // 1 or 2
+            gameOver: false,
+            board: [], // 4x4x4 array
+            hoveredCell: null,
+            p1Score: 0,
+            p2Score: 0,
+            // PvE settings
+            gameMode: null, // 'pvp' or 'pve' - null means menu is showing
+            playerGoesFirst: true,
+            timeLimit: 3000, // AI think time in milliseconds
+            aiThinking: false,
+            aiPlayer: 2 // Which player the AI controls (1 or 2)
+        };
+
+        // --- Game Logic ---
+        class GameLogic {
+            constructor() {
+                this.history = [];
+                this.reset();
+            }
+
+            reset() {
+                // Initialize 4x4x4 grid with 0
+                STATE.board = Array(4).fill().map(() =>
+                    Array(4).fill().map(() =>
+                        Array(4).fill(0)
+                    )
+                );
+                STATE.turn = 1;
+                STATE.gameOver = false;
+                this.history = [];
+                this.updateUI();
+            }
+
+            isValidMove(x, y, z) {
+                if (STATE.gameOver) return false;
+                if (x < 0 || x >= 4 || y < 0 || y >= 4 || z < 0 || z >= 4) return false;
+                return STATE.board[y][z][x] === 0;
+            }
+
+            makeMove(x, y, z) {
+                if (!this.isValidMove(x, y, z)) return false;
+
+                STATE.board[y][z][x] = STATE.turn;
+                this.history.push({ x, y, z, player: STATE.turn, wasWin: false });
+
+                // Check win
+                if (this.checkWin(STATE.turn)) {
+                    STATE.gameOver = true;
+
+                    // Mark last history item as win for undo purposes
+                    this.history[this.history.length - 1].wasWin = true;
+
+                    // Increment Score
+                    if (STATE.turn === 1) STATE.p1Score++;
+                    else STATE.p2Score++;
+                    this.updateScoreboard();
+
+                    // Force clear hover immediately to prevent "ghost ball"
+                    renderer.clearHover();
+
+                    // Draw winning line
+                    if (this.winningLinePoints) {
+                        const [p1, p2] = this.winningLinePoints;
+                        // Access renderer global
+                        const start = renderer.getGlobalPosition(p1.x, p1.y, p1.z);
+                        const end = renderer.getGlobalPosition(p2.x, p2.y, p2.z);
+                        renderer.drawWinningLine(start, end, STATE.turn);
+                    }
+
+                    const winnerText = STATE.turn === 1 ? "Player 1 Wins!" : "Player 2 Wins!";
+                    const color = STATE.turn === 1 ? CONFIG.p1Color : CONFIG.p2Color;
+
+                    // Update UI to show winner
+                    const turnText = document.getElementById('turn-text');
+                    turnText.textContent = winnerText;
+                    turnText.style.color = color;
+                    document.getElementById('turn-dot').style.backgroundColor = color;
+
+                    // Show Notification
+                    const notif = document.getElementById('notification');
+                    const notifText = document.getElementById('notif-text');
+                    const notifBtn = document.getElementById('notif-btn');
+
+                    notifText.textContent = winnerText;
+                    notifText.style.color = color;
+                    notif.classList.add('show');
+
+                    // Button listener
+                    notifBtn.onclick = () => {
+                        // Find the GUI reset controller or just call the global reset logic if exposed
+                        // Since we instantiated gui in renderer, we can just trigger a click or expose a global
+                        // Easiest is to dispatch a custom event or make reset global.
+                        // Let's use a simpler approach: call a global function we'll define.
+                        window.resetGame();
+                    };
+
+                    return true;
+                }
+
+                STATE.turn = STATE.turn === 1 ? 2 : 1;
+                this.updateUI();
+                return true;
+            }
+
+            checkWin(player) {
+                const b = STATE.board;
+                const N = 4;
+                this.winningLinePoints = null;
+
+                // Helper to check a line defined by start point (x,y,z) and direction (dx,dy,dz)
+                const checkLine = (x, y, z, dx, dy, dz) => {
+                    for (let i = 0; i < N; i++) {
+                        if (b[y + i * dy][z + i * dz][x + i * dx] !== player) return false;
+                    }
+                    this.winningLinePoints = [
+                        { x: x, y: y, z: z },
+                        { x: x + (N - 1) * dx, y: y + (N - 1) * dy, z: z + (N - 1) * dz }
+                    ];
+                    return true;
+                };
+
+                // 1. Rows (along X), Columns (along Z), Pillars (along Y)
+                for (let i = 0; i < N; i++) {
+                    for (let j = 0; j < N; j++) {
+                        // Rows: vary X, fixed Y, Z (checkLine(0, i, j, 1, 0, 0))
+                        if (checkLine(0, i, j, 1, 0, 0)) return true;
+                        // Cols: vary Z, fixed Y, X (checkLine(j, i, 0, 0, 0, 1))
+                        if (checkLine(j, i, 0, 0, 0, 1)) return true;
+                        // Pillars: vary Y, fixed X, Z (checkLine(i, 0, j, 0, 1, 0))
+                        if (checkLine(i, 0, j, 0, 1, 0)) return true;
+                    }
+                }
+
+                // 2. 2D Diagonals on each Plane (XY, XZ, YZ)
+                for (let i = 0; i < N; i++) {
+                    // XZ planes (fixed Y)
+                    if (checkLine(0, i, 0, 1, 0, 1)) return true;
+                    if (checkLine(3, i, 0, -1, 0, 1)) return true;
+
+                    // XY planes (fixed Z)
+                    if (checkLine(0, 0, i, 1, 1, 0)) return true;
+                    if (checkLine(0, 3, i, 1, -1, 0)) return true;
+
+                    // YZ planes (fixed X)
+                    if (checkLine(i, 0, 0, 0, 1, 1)) return true;
+                    if (checkLine(i, 0, 3, 0, 1, -1)) return true;
+                }
+
+                // 3. 3D Main Diagonals (4 total)
+                if (checkLine(0, 0, 0, 1, 1, 1)) return true;
+                if (checkLine(3, 0, 0, -1, 1, 1)) return true;
+                if (checkLine(0, 0, 3, 1, 1, -1)) return true;
+                if (checkLine(3, 0, 3, -1, 1, -1)) return true;
+
+                return false;
+            }
+
+            updateUI() {
+                const turnText = document.getElementById('turn-text');
+                const turnDot = document.getElementById('turn-dot');
+                const undoBtn = document.getElementById('undo-btn');
+
+                if (STATE.turn === 1) {
+                    turnText.textContent = "Player 1";
+                    turnText.style.color = CONFIG.p1Color;
+                    turnDot.style.backgroundColor = CONFIG.p1Color;
+                    // Undo button shows opposite player's color (the last player)
+                    undoBtn.style.borderColor = CONFIG.p2Color;
+                    undoBtn.style.color = CONFIG.p2Color;
+                } else {
+                    turnText.textContent = "Player 2";
+                    turnText.style.color = CONFIG.p2Color;
+                    turnDot.style.backgroundColor = CONFIG.p2Color;
+                    // Undo button shows opposite player's color
+                    undoBtn.style.borderColor = CONFIG.p1Color;
+                    undoBtn.style.color = CONFIG.p1Color;
+                }
+            }
+
+            updateScoreboard() {
+                document.getElementById('score-p1').textContent = STATE.p1Score;
+                document.getElementById('score-p2').textContent = STATE.p2Score;
+            }
+
+            undo() {
+                if (this.history.length === 0) return;
+
+                // Block undo while AI is thinking
+                if (STATE.aiThinking) return;
+
+                const lastMove = this.history.pop();
+                const { x, y, z, player, wasWin } = lastMove;
+
+                // Revert Board
+                STATE.board[y][z][x] = 0;
+
+                // Remove Piece Reusally
+                renderer.removePiece(x, y, z);
+
+                // Handle Win Reversal
+                if (wasWin) {
+                    STATE.gameOver = false;
+                    STATE.turn = player; // Even if game over, revert turn to who just played (so they can play again or undo more)
+
+                    // Decr Score
+                    if (player === 1) STATE.p1Score--;
+                    else STATE.p2Score--;
+                    this.updateScoreboard();
+
+                    // Clear winning lines
+                    renderer.clearWinningLines();
+
+                    // Hide Notification
+                    document.getElementById('notification').classList.remove('show');
+                } else {
+                    // Normal undo, just revert turn
+                    STATE.turn = player;
+                }
+
+                this.updateUI();
+
+                // In PvE mode, if we just undid an AI move, also undo the player's move before it
+                if (STATE.gameMode === 'pve' && player === STATE.aiPlayer && this.history.length > 0) {
+                    // Recursively undo one more move (player's move)
+                    this.undo();
+                }
+            }
+        }
+
+        // --- Renderer ---
+        class GameRenderer {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(CONFIG.backgroundColor);
+                this.scene.fog = new THREE.Fog(CONFIG.backgroundColor, 20, 50);
+
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.camera.position.set(12, 10, 12);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+
+                // Group to hold the entire board so we can center it
+                this.boardGroup = new THREE.Group();
+                this.scene.add(this.boardGroup);
+
+                // Layers group: We will have 4 layers. 
+                // We'll store references to objects to animate their Y positions.
+                this.layerGroups = []; // Array of 4 THREE.Group
+                this.cells = []; // To store hitboxes for raycasting: { mesh, x, y, z }
+                this.pieces = []; // Store placed pieces meshes
+                this.winningLines = []; // Store winning line meshes
+
+                this.setupLights();
+                this.createGrid();
+                this.setupInteraction();
+                this.setupGUI();
+
+                window.addEventListener('resize', this.onWindowResize.bind(this));
+            }
+
+            setupLights() {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                this.scene.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(10, 20, 10);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.width = 2048;
+                dirLight.shadow.mapSize.height = 2048;
+                this.scene.add(dirLight);
+
+                // Add a rim light for extra polish
+                const spotLight = new THREE.SpotLight(0x0044ff, 2);
+                spotLight.position.set(-10, 10, -5);
+                spotLight.lookAt(0, 0, 0);
+                this.scene.add(spotLight);
+            }
+
+            createGrid() {
+                // Clear existing
+                while (this.boardGroup.children.length > 0) {
+                    this.boardGroup.remove(this.boardGroup.children[0]);
+                }
+                this.layerGroups = [];
+                this.cells = [];
+
+                // Size of the grid total width
+                const fullSize = 4 * CONFIG.spacing;
+                const offset = (CONFIG.gridSize - 1) * CONFIG.spacing * 0.5;
+
+                // Shared Geometry/Materials for performance
+                // Cylinder for grid lines (horizontal X)
+                const gridLineGeoX = new THREE.CylinderGeometry(CONFIG.gridThickness, CONFIG.gridThickness, fullSize, 8);
+                gridLineGeoX.rotateZ(Math.PI / 2);
+
+                // Cylinder for grid lines (vertical Z)
+                const gridLineGeoZ = new THREE.CylinderGeometry(CONFIG.gridThickness, CONFIG.gridThickness, fullSize, 8);
+                gridLineGeoZ.rotateX(Math.PI / 2);
+
+                const gridMat = new THREE.MeshStandardMaterial({
+                    color: CONFIG.gridColor,
+                    roughness: 0.4,
+                    metalness: 0.6
+                });
+
+                // Create 4 layers
+                for (let y = 0; y < 4; y++) {
+                    const layerGroup = new THREE.Group();
+                    layerGroup.position.y = (y - 1.5) * CONFIG.layerSpacingCompact;
+                    layerGroup.userData = { layerIndex: y };
+
+                    this.layerGroups.push(layerGroup);
+                    this.boardGroup.add(layerGroup);
+
+                    // Create Custom Grid Lines using Cylinders
+                    // 5 lines for X direction and 5 lines for Z direction to form a 4x4 grid
+                    const ext = 0; // extension if desired
+
+                    for (let i = 0; i <= 4; i++) {
+                        const pos = (i * CONFIG.spacing) - (2 * CONFIG.spacing);
+
+                        // Line along X (constant Z)
+                        const lineX = new THREE.Mesh(gridLineGeoX, gridMat);
+                        lineX.position.set(0, 0, pos);
+                        layerGroup.add(lineX);
+
+                        // Line along Z (constant X)
+                        const lineZ = new THREE.Mesh(gridLineGeoZ, gridMat);
+                        lineZ.position.set(pos, 0, 0);
+                        layerGroup.add(lineZ);
+                    }
+
+                    // Hitboxes logic remains ...
+                    for (let x = 0; x < 4; x++) {
+                        for (let z = 0; z < 4; z++) {
+                            // Calculate local position
+                            const lx = (x * CONFIG.spacing) - offset;
+                            const lz = (z * CONFIG.spacing) - offset;
+
+                            // Include a "floor" plane for the cell to receive shadows nicely and serve as hitbox
+                            // Make it slightly distinct
+                            const geometry = new THREE.PlaneGeometry(CONFIG.spacing * 0.9, CONFIG.spacing * 0.9);
+                            geometry.rotateX(-Math.PI / 2);
+                            const material = new THREE.MeshBasicMaterial({
+                                color: 0xffffff,
+                                transparent: true,
+                                opacity: 0.05, // Very faint visibility for structure
+                                side: THREE.DoubleSide,
+                                depthWrite: false
+                            });
+                            const cell = new THREE.Mesh(geometry, material);
+                            cell.position.set(lx, 0, lz);
+                            cell.userData = { x, y, z }; // Store logical coordinates
+
+                            layerGroup.add(cell);
+                            this.cells.push(cell);
+                        }
+                    }
+                }
+            }
+
+            getTargetLayerY(yIndex) {
+                const spacing = STATE.mode === 'Immersive' ? CONFIG.layerSpacingCompact : CONFIG.layerSpacingExploded;
+                // Center the stack around 0
+                return (yIndex - 1.5) * spacing;
+            }
+
+            addPiece(x, y, z, player) {
+                const geometry = new THREE.SphereGeometry(CONFIG.sphereSize, 32, 32);
+                const color = player === 1 ? CONFIG.p1Color : CONFIG.p2Color;
+                const material = new THREE.MeshPhysicalMaterial({
+                    color: color,
+                    metalness: 0.2,
+                    roughness: 0.1,
+                    clearcoat: 1.0,
+                    clearcoatRoughness: 0.1
+                });
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.castShadow = true;
+                sphere.receiveShadow = true;
+
+                // Find the local position relative to the layer
+                const offset = (CONFIG.gridSize - 1) * CONFIG.spacing * 0.5;
+                const lx = (x * CONFIG.spacing) - offset;
+                const lz = (z * CONFIG.spacing) - offset;
+
+                sphere.position.set(lx, 0, lz);
+                sphere.userData = { x, y, z, player }; // Store player for color updates
+
+                // Add to the correct layer group so it moves with the layer
+                this.layerGroups[y].add(sphere);
+
+                // Animate pop-in
+                sphere.scale.set(0, 0, 0);
+                this.animatePiece(sphere);
+
+                this.pieces.push(sphere);
+            }
+
+            updatePieceColors() {
+                this.pieces.forEach(piece => {
+                    const color = piece.userData.player === 1 ? CONFIG.p1Color : CONFIG.p2Color;
+                    piece.material.color.set(color);
+                });
+            }
+
+            removePiece(x, y, z) {
+                // Find index
+                const idx = this.pieces.findIndex(p => p.userData.x === x && p.userData.y === y && p.userData.z === z);
+                if (idx !== -1) {
+                    const mesh = this.pieces[idx];
+                    mesh.parent.remove(mesh);
+                    mesh.geometry.dispose();
+                    mesh.material.dispose();
+                    this.pieces.splice(idx, 1);
+                }
+            }
+
+            clearWinningLines() {
+                this.winningLines.forEach(l => {
+                    l.parent.remove(l);
+                    l.geometry.dispose();
+                    l.material.dispose();
+                });
+                this.winningLines = [];
+            }
+
+            drawWinningLine(start, end, player) {
+                // Use TubeGeometry for visible thickness
+                const path = new THREE.LineCurve3(start, end);
+                const geometry = new THREE.TubeGeometry(path, 1, 0.15, 8, false);
+                const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+                    color: player === 1 ? CONFIG.p1Color : CONFIG.p2Color,
+                    emissive: player === 1 ? CONFIG.p1Color : CONFIG.p2Color,
+                    emissiveIntensity: 0.8
+                }));
+                this.boardGroup.add(mesh);
+                this.winningLines.push(mesh);
+            }
+
+            getGlobalPosition(x, y, z) {
+                const offset = (CONFIG.gridSize - 1) * CONFIG.spacing * 0.5;
+                const lx = (x * CONFIG.spacing) - offset;
+                const lz = (z * CONFIG.spacing) - offset;
+                // Get current Y of the layer group
+                const ly = this.layerGroups[y].position.y;
+                return new THREE.Vector3(lx, ly, lz);
+            }
+
+
+
+            animatePiece(mesh) {
+                const start = performance.now();
+                const duration = 400;
+
+                const animate = (time) => {
+                    const elapsed = time - start;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // Elastic ease out
+                    const s = this.easeOutBack(progress);
+                    mesh.scale.set(s, s, s);
+
+                    if (progress < 1) requestAnimationFrame(animate);
+                };
+                requestAnimationFrame(animate);
+            }
+
+            easeOutBack(x) {
+                const c1 = 1.70158;
+                const c3 = c1 + 1;
+                return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+            }
+
+            // Simple linear interpolation
+            lerp(start, end, t) {
+                return start * (1 - t) + end * t;
+            }
+
+            updateAnimation(deltaTime) {
+                // Smoothly interpolate layer positions
+                const smoothing = 5.0 * deltaTime; // Adjust speed
+
+                this.layerGroups.forEach((group, index) => {
+                    const targetY = this.getTargetLayerY(index);
+                    if (Math.abs(group.position.y - targetY) > 0.001) {
+                        group.position.y = this.lerp(group.position.y, targetY, smoothing);
+                    }
+                });
+            }
+
+            // --- Interaction ---
+            setupInteraction() {
+                window.addEventListener('pointermove', (event) => {
+                    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                });
+
+                // Only handle clicks on the canvas, not UI elements
+                this.renderer.domElement.addEventListener('click', (event) => {
+                    // Block clicks during AI's turn or while AI is thinking
+                    if (STATE.gameMode === 'pve' && (STATE.turn === STATE.aiPlayer || STATE.aiThinking)) {
+                        return;
+                    }
+
+                    if (STATE.hoveredCell) {
+                        const { x, y, z } = STATE.hoveredCell.userData;
+                        // Determine player BEFORE move makes turn swap
+                        const currentPlayer = STATE.turn;
+
+                        if (gameLogic.makeMove(x, y, z)) {
+                            // Add piece with the player who just played
+                            this.addPiece(x, y, z, currentPlayer);
+
+                            // Trigger AI move in PvE mode (after a short delay for visual feedback)
+                            if (STATE.gameMode === 'pve' && !STATE.gameOver) {
+                                setTimeout(() => {
+                                    if (window.triggerAIMove) window.triggerAIMove();
+                                }, 300);
+                            }
+                        }
+                    }
+                });
+            }
+
+            checkIntersection() {
+                if (STATE.gameOver) {
+                    // Ensure hover is cleared if game ends
+                    if (this.currentHover) {
+                        this.clearHover();
+                    }
+                    return;
+                }
+
+                // Block hover during AI's turn in PvE mode
+                if (STATE.gameMode === 'pve' && (STATE.turn === STATE.aiPlayer || STATE.aiThinking)) {
+                    if (this.currentHover) {
+                        this.clearHover();
+                    }
+                    return;
+                }
+
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                // ... rest is same
+                const intersects = this.raycaster.intersectObjects(this.cells);
+                // ...
+                let newHover = null;
+
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const obj = hit.object;
+                    const { x, y, z } = obj.userData;
+
+                    if (gameLogic.isValidMove(x, y, z)) {
+                        newHover = obj;
+                    }
+                }
+
+                if (this.currentHover && this.currentHover !== newHover) {
+                    this.clearHover();
+                }
+
+                if (newHover && this.currentHover !== newHover) {
+                    // Set new
+                    const color = STATE.turn === 1 ? CONFIG.p1Color : CONFIG.p2Color;
+                    newHover.material.opacity = 0.4;
+                    newHover.material.color.set(color);
+                    this.currentHover = newHover;
+                    STATE.hoveredCell = newHover;
+                    document.body.style.cursor = "pointer";
+                }
+            }
+
+            // Helper to clean up hover state
+            clearHover() {
+                if (this.currentHover) {
+                    this.currentHover.material.opacity = 0.05;
+                    this.currentHover.material.color.set(0xffffff);
+                    this.currentHover = null;
+                }
+                STATE.hoveredCell = null;
+                document.body.style.cursor = "default";
+            }
+
+            setupGUI() {
+                const gui = new GUI({ title: 'Settings' });
+
+
+
+                // Colors
+                const colorFolder = gui.addFolder('Colors');
+                colorFolder.addColor(CONFIG, 'p1Color').name('Player 1').onChange(() => {
+                    gameLogic.updateUI();
+                    this.updatePieceColors();
+                });
+                colorFolder.addColor(CONFIG, 'p2Color').name('Player 2').onChange(() => {
+                    gameLogic.updateUI();
+                    this.updatePieceColors();
+                });
+                colorFolder.addColor(CONFIG, 'gridColor').name('Grid Lines').onChange((v) => {
+                    this.layerGroups.forEach(g => {
+                        g.children.forEach(c => {
+                            if (c.geometry && c.geometry.type === 'CylinderGeometry') {
+                                c.material.color.set(v);
+                            }
+                        })
+                    });
+                });
+
+                // View Mode
+                gui.add(STATE, 'mode', ['Immersive', 'Layered']).name('View Mode').onChange((v) => {
+                });
+
+                const resetFunc = () => {
+                    gameLogic.reset();
+                    // Clear pieces meshes
+                    this.pieces.forEach(p => {
+                        p.parent.remove(p);
+                        p.geometry.dispose();
+                        p.material.dispose();
+                    });
+                    this.pieces = [];
+
+                    // Clear winning lines
+                    this.winningLines.forEach(l => {
+                        l.parent.remove(l);
+                        l.geometry.dispose();
+                        l.material.dispose();
+                    });
+                    this.winningLines = [];
+
+                    // Hide Notification
+                    document.getElementById('notification').classList.remove('show');
+                };
+
+                // Expose globally for the button
+                window.resetGame = resetFunc;
+                window.gameLogic = gameLogic; // Expose for undo button
+
+                gui.add({ reset: resetFunc }, 'reset').name('Reset Game');
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            render() {
+                const clock = new THREE.Clock();
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+
+                    const delta = clock.getDelta();
+                    this.updateAnimation(delta);
+                    this.checkIntersection();
+                    this.controls.update();
+
+                    this.renderer.render(this.scene, this.camera);
+                };
+                animate();
+            }
+        }
+
+        // --- Initialization ---
+        const gameLogic = new GameLogic();
+        const renderer = new GameRenderer();
+        renderer.render();
+
+        // Setup Undo Button Listener - use onclick like notification button
+        document.getElementById('undo-btn').onclick = () => {
+            console.log('Undo button clicked');
+            gameLogic.undo();
+        };
+
+        // Keyboard Shortcut: Z to Undo
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'z' || e.key === 'Z') {
+                console.log('Z key pressed - Undo');
+                gameLogic.undo();
+            }
+        });
+
+        // --- AI Worker Setup ---
+        let aiWorker = null;
+        let aiTimerInterval = null;
+        let aiStartTime = 0;
+
+        function initAIWorker() {
+            if (aiWorker) aiWorker.terminate();
+            aiWorker = new Worker('ai-worker.js');
+
+            aiWorker.onmessage = function (e) {
+                const { type, move, depth, score } = e.data;
+
+                // Handle progress updates
+                if (type === 'progress') {
+                    document.getElementById('ai-depth').textContent = `Depth: ${depth}`;
+                    return;
+                }
+
+                // Handle final result
+                if (type === 'result' && move) {
+                    stopAITimer();
+                    STATE.aiThinking = false;
+                    document.getElementById('ai-thinking').classList.remove('show');
+
+                    if (!STATE.gameOver) {
+                        const { x, y, z } = move;
+                        const aiPlayer = STATE.aiPlayer;
+
+                        if (gameLogic.makeMove(x, y, z)) {
+                            renderer.addPiece(x, y, z, aiPlayer);
+                        }
+                    }
+                }
+            };
+
+            aiWorker.onerror = function (err) {
+                console.error('AI Worker error:', err);
+                stopAITimer();
+                STATE.aiThinking = false;
+                document.getElementById('ai-thinking').classList.remove('show');
+            };
+        }
+
+        function startAITimer() {
+            aiStartTime = performance.now();
+            updateTimerDisplay();
+            aiTimerInterval = setInterval(updateTimerDisplay, 100);
+        }
+
+        function stopAITimer() {
+            if (aiTimerInterval) {
+                clearInterval(aiTimerInterval);
+                aiTimerInterval = null;
+            }
+        }
+
+        function updateTimerDisplay() {
+            const elapsed = ((performance.now() - aiStartTime) / 1000).toFixed(1);
+            document.getElementById('ai-timer').textContent = `${elapsed}s`;
+        }
+
+        // Play Now button - interrupt AI and use current best move
+        document.getElementById('play-now-btn').onclick = () => {
+            if (aiWorker && STATE.aiThinking) {
+                aiWorker.postMessage({ type: 'stop' });
+            }
+        };
+
+        // Convert board state to BigInt bitmasks
+        function boardToMasks() {
+            let p1Mask = 0n;
+            let p2Mask = 0n;
+
+            for (let y = 0; y < 4; y++) {
+                for (let z = 0; z < 4; z++) {
+                    for (let x = 0; x < 4; x++) {
+                        const bitIndex = BigInt(y * 16 + z * 4 + x);
+                        const cell = STATE.board[y][z][x];
+                        if (cell === 1) {
+                            p1Mask |= (1n << bitIndex);
+                        } else if (cell === 2) {
+                            p2Mask |= (1n << bitIndex);
+                        }
+                    }
+                }
+            }
+
+            return { p1Mask: p1Mask.toString(), p2Mask: p2Mask.toString() };
+        }
+
+        // Trigger AI move
+        function triggerAIMove() {
+            if (STATE.gameMode !== 'pve' || STATE.gameOver || STATE.aiThinking) return;
+            if (STATE.turn !== STATE.aiPlayer) return;
+
+            STATE.aiThinking = true;
+            document.getElementById('ai-thinking').classList.add('show');
+            document.getElementById('ai-timer').textContent = '0.0s';
+            document.getElementById('ai-depth').textContent = '';
+            startAITimer();
+
+            const { p1Mask, p2Mask } = boardToMasks();
+            const aiIsPlayer1 = STATE.aiPlayer === 1;
+
+            aiWorker.postMessage({
+                p1Mask,
+                p2Mask,
+                aiIsPlayer1,
+                timeLimit: STATE.timeLimit
+            });
+        }
+
+        // --- Menu System ---
+        const mainMenu = document.getElementById('main-menu');
+        const pveMenu = document.getElementById('pve-menu');
+        const diffButtons = document.querySelectorAll('.diff-btn');
+
+        // PvP Button
+        document.getElementById('btn-pvp').onclick = () => {
+            STATE.gameMode = 'pvp';
+            mainMenu.classList.add('hidden');
+            gameLogic.reset();
+        };
+
+        // PvE Button
+        document.getElementById('btn-pve').onclick = () => {
+            mainMenu.classList.add('hidden');
+            pveMenu.classList.remove('hidden');
+        };
+
+        // Back Button
+        document.getElementById('btn-back').onclick = () => {
+            pveMenu.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+        };
+
+        // Time Limit Buttons
+        diffButtons.forEach(btn => {
+            btn.onclick = () => {
+                diffButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.timeLimit = parseInt(btn.dataset.time, 10);
+            };
+        });
+
+        // Start PvE - Player goes first
+        document.getElementById('btn-first').onclick = () => {
+            STATE.gameMode = 'pve';
+            STATE.playerGoesFirst = true;
+            STATE.aiPlayer = 2; // AI is player 2
+            pveMenu.classList.add('hidden');
+            initAIWorker();
+            gameLogic.reset();
+        };
+
+        // Start PvE - Player goes second
+        document.getElementById('btn-second').onclick = () => {
+            STATE.gameMode = 'pve';
+            STATE.playerGoesFirst = false;
+            STATE.aiPlayer = 1; // AI is player 1
+            pveMenu.classList.add('hidden');
+            initAIWorker();
+            gameLogic.reset();
+            // AI makes first move
+            setTimeout(triggerAIMove, 500);
+        };
+
+        // Expose triggerAIMove globally for use after player moves
+        window.triggerAIMove = triggerAIMove;
+
+        // Override the reset to show menu
+        const originalReset = window.resetGame;
+        window.resetGame = function () {
+            originalReset();
+            // Show main menu again
+            STATE.gameMode = null;
+            mainMenu.classList.remove('hidden');
+            pveMenu.classList.add('hidden');
+        };
+
+    </script>
+</body>
+
+</html>
