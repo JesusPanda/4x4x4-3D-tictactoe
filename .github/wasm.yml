@@ -1,0 +1,55 @@
+name: Compile to WebAssembly
+on: [push]
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y m4 libgmp-dev autoconf libtool
+
+      - name: Build ECL for WebAssembly
+        run: |
+          git clone https://gitlab.com/embeddable-common-lisp/ecl.git
+          cd ecl
+          # 1. Build host ECL first
+          ./configure --prefix=$(pwd)/ecl-host
+          make -j$(nproc) && make install
+          
+          # 2. Cross-compile ECL to Wasm
+          export PATH=$(pwd)/ecl-host/bin:$PATH
+          emconfigure ./configure --host=wasm32-unknown-emscripten \
+                                  --with-cross-config=$(pwd)/src/util/wasm32-unknown-emscripten.cross_config \
+                                  --prefix=$(pwd)/ecl-wasm \
+                                  --disable-shared
+          emmake make -j$(nproc) && emmake make install
+
+      - name: Compile Project to Wasm
+        run: |
+          # Use the cross-compiled ECL to build your project's object files
+          # Replace 'your-system-name' with the actual ASDF system name
+          ./ecl/ecl-host/bin/ecl --eval "(require 'asdf)" \
+                                 --eval "(asdf:make :4x4x4-3D-tictactoe)"
+          
+          # Link the generated C code using emcc
+          emcc -O3 your_main_file.c ./ecl/ecl-wasm/lib/libecl.a -I./ecl/ecl-wasm/include \
+               -s WASM=1 -o index.html
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build
+          path: |
+            index.html
+            index.wasm
+            index.js
