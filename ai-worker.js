@@ -1,4 +1,4 @@
-import init, { search_depth, clear_tt } from './tic-tac-toe-ai/pkg/tic_tac_toe_ai.js';
+import init, { search_depth, clear_tt } from './pkg/tic_tac_toe_ai.js';
 
 let isInitialized = false;
 
@@ -98,3 +98,4 @@ self.onmessage = async function (e) {
         self.postMessage({ type: 'error', message: err.toString() });
     }
 };
+
