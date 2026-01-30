@@ -97,17 +97,15 @@ export function clear_tt() {
 }
 
 /**
- * Runs ONE depth of the search.
- * Returns SearchResult. If time_abort is true, score is invalid.
- * @param {bigint} p1_mask
- * @param {bigint} p2_mask
+ * @param {bigint} p1
+ * @param {bigint} p2
  * @param {boolean} ai_is_p1
  * @param {number} depth
  * @param {number} stop_time
  * @returns {any}
  */
-export function search_depth(p1_mask, p2_mask, ai_is_p1, depth, stop_time) {
-    const ret = wasm.search_depth(p1_mask, p2_mask, ai_is_p1, depth, stop_time);
+export function search_depth(p1, p2, ai_is_p1, depth, stop_time) {
+    const ret = wasm.search_depth(p1, p2, ai_is_p1, depth, stop_time);
     return ret;
 }
 

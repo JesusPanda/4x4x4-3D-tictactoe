@@ -15,11 +15,7 @@ export class SearchResult {
 
 export function clear_tt(): void;
 
-/**
- * Runs ONE depth of the search.
- * Returns SearchResult. If time_abort is true, score is invalid.
- */
-export function search_depth(p1_mask: bigint, p2_mask: bigint, ai_is_p1: boolean, depth: number, stop_time: number): any;
+export function search_depth(p1: bigint, p2: bigint, ai_is_p1: boolean, depth: number, stop_time: number): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 

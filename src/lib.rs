@@ -430,24 +430,3 @@ fn get_sorted_moves(p1: u64, p2: u64, is_p1: bool, out: &mut [u8; 64]) -> usize 
     
     count
 }
-```
-
-### 2. The Config (`Cargo.toml`)
-
-Ensure your dependencies match this to support the engine.
-
-```toml
-[package]
-name = "qubic-engine"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[dependencies]
-wasm-bindgen = "0.2"
-js-sys = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde-wasm-bindgen = "0.4"
-getrandom = { version = "0.2", features = ["js"] }
