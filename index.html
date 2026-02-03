@@ -765,7 +765,7 @@
                 this.boardGroup = new THREE.Group();
                 this.scene.add(this.boardGroup);
 
-                // Layers group: We will have 4 layers. 
+                // Layers group: We will have 4 layers.
                 // We'll store references to objects to animate their Y positions.
                 this.layerGroups = []; // Array of 4 THREE.Group
                 this.cells = []; // To store hitboxes for raycasting: { mesh, x, y, z }
@@ -917,6 +917,7 @@
                 this.animatePiece(sphere);
 
                 this.pieces.push(sphere);
+                this.updateLastPieceGlow();
             }
 
             updatePieceColors() {
@@ -924,6 +925,7 @@
                     const color = piece.userData.player === 1 ? CONFIG.p1Color : CONFIG.p2Color;
                     piece.material.color.set(color);
                 });
+                this.updateLastPieceGlow();
             }
 
             removePiece(x, y, z) {
@@ -935,6 +937,26 @@
                     mesh.geometry.dispose();
                     mesh.material.dispose();
                     this.pieces.splice(idx, 1);
+                    this.updateLastPieceGlow();
+                }
+            }
+
+            updateLastPieceGlow() {
+                // Reset glow on all pieces
+                this.pieces.forEach(p => {
+                    if (p.material) {
+                        p.material.emissive.set(0x000000);
+                        p.material.emissiveIntensity = 0;
+                    }
+                });
+
+                // Apply glow to the last piece
+                if (this.pieces.length > 0) {
+                    const lastPiece = this.pieces[this.pieces.length - 1];
+                    if (lastPiece.material) {
+                        lastPiece.material.emissive.copy(lastPiece.material.color);
+                        lastPiece.material.emissiveIntensity = 0.6;
+                    }
                 }
             }
 
@@ -1157,6 +1179,7 @@
                 // Expose globally for the button
                 window.resetGame = resetFunc;
                 window.gameLogic = gameLogic; // Expose for undo button
+        window.renderer = this; // Expose renderer for testing/interaction
 
                 gui.add({ reset: resetFunc }, 'reset').name('Reset Game');
             }
