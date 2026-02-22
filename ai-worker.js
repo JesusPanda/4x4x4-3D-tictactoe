@@ -1,4 +1,7 @@
 import init, { search_depth, clear_tt } from './pkg/tic_tac_toe_ai.js';
+// Threshold to detect a forced win (Wasm WIN_SCORE is 30,000)
+const WIN_THRESHOLD = 29000;
+
 
 let isInitialized = false;
 
@@ -77,7 +80,7 @@ self.onmessage = async function (e) {
                 });
 
                 // Check for forced win
-                if (result.score >= 900000) {
+                if (result.score >= WIN_THRESHOLD) {
                     break;
                 }
             }
