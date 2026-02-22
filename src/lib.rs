@@ -415,18 +415,21 @@ fn get_sorted_moves(p1: u64, p2: u64, is_p1: bool, out: &mut [u8; 64]) -> usize 
         tt.borrow().get(&tt_key(p1, p2, is_p1)).map(|e| e.best_move)
     });
 
-    for i in 0..64 {
-        if (occupied & (1 << i)) == 0 {
-            let mut val = POSITIONAL_WEIGHTS[i];
-            if Some(i as u8) == best_m { val += 100_000; }
-            scored_moves[count] = (i as u8, val);
-            count += 1;
-        }
+    let mut empty = !occupied;
+    while empty != 0 {
+        let i = empty.trailing_zeros();
+        empty &= empty - 1;
+
+        let mut val = POSITIONAL_WEIGHTS[i as usize];
+        if Some(i as u8) == best_m { val += 100_000; }
+        scored_moves[count] = (i as u8, val);
+        count += 1;
     }
 
-    // Sort descending
-    scored_moves[0..count].sort_unstable_by(|a, b| b.1.cmp(&a.1));
-    for i in 0..count { out[i] = scored_moves[i].0; }
-    
-    count
-}
+        // Sort descending
+        scored_moves[0..count].sort_unstable_by(|a, b| b.1.cmp(&a.1));
+        for i in 0..count { out[i] = scored_moves[i].0; }
+
+        count
+    }
+
